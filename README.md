@@ -7,9 +7,19 @@
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4+-38B2AC.svg)](https://tailwindcss.com)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Motor%20Async-47A248.svg)](https://www.mongodb.com/)
 [![Clerk Auth](https://img.shields.io/badge/Auth-Clerk%20JWT-6C47FF.svg)](https://clerk.com/)
-[![Tests Passing](https://img.shields.io/badge/Tests-100%25%20Passing%20(46%2F46)-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/Tests-100%25%20Passing%20(74%2F74)-brightgreen.svg)]()
 
 > **EcoScan** is a production-grade full-stack web application designed to empower conscious consumerism. Users upload or capture photos of clothing items, an AI vision pipeline identifies the garments, calculates life-cycle carbon footprints ($\text{kg CO}_2\text{e}$), quantifies emissions avoided relative to fast-fashion benchmarks, awards **EcoPoints**, and unlocks redeemable circular partner rewards.
+
+---
+
+## 📺 Product Walkthrough & Demo Video
+
+Watch a complete demonstration showcasing the dual-mode architecture, live garment scanning, strict non-clothing validation, cradle-to-grave carbon accounting, and eco-reward voucher redemption:
+
+▶️ **YouTube Video**: [https://youtu.be/Ub2KZl9YQcU](https://youtu.be/Ub2KZl9YQcU)
+
+[![EcoScan Product Walkthrough](https://img.youtube.com/vi/Ub2KZl9YQcU/maxresdefault.jpg)](https://youtu.be/Ub2KZl9YQcU)
 
 ---
 
@@ -31,6 +41,8 @@ Both modes share the core AI garment recognition, lifecycle carbon scoring, and 
 ---
 
 ## 📑 Table of Contents
+- [📺 Product Walkthrough & Demo Video](#-product-walkthrough--demo-video)
+- [🔀 Dual-Mode Experience](#-dual-mode-experience)
 - [Architecture & Tech Stack](#-architecture--tech-stack)
 - [Key Features](#-key-features)
 - [Project Directory Structure](#-project-directory-structure)

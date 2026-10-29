@@ -5,6 +5,7 @@ import { StatCard } from '../components/common/StatCard';
 import { GarmentCard } from '../components/Scanner/GarmentCard';
 import { OfferCard } from '../components/Redeem/OfferCard';
 import { TabNavigation } from '../components/TabNavigation';
+import { LandingPage } from '../components/Landing/LandingPage';
 import { GarmentItem, Offer } from '../types';
 
 describe('Common Components', () => {
@@ -127,5 +128,32 @@ describe('TabNavigation Component', () => {
     const redeemTab = screen.getByText('Redeem Offers');
     fireEvent.click(redeemTab);
     expect(onChangeTab).toHaveBeenCalledWith('redeem');
+  });
+});
+
+describe('LandingPage Component (Dual-Mode Selector)', () => {
+  it('renders dual-mode options and triggers mode selection callbacks', () => {
+    const onSelectTest = vi.fn();
+    const onSelectProd = vi.fn();
+
+    render(
+      <LandingPage
+        onSelectTestMode={onSelectTest}
+        onSelectProdMode={onSelectProd}
+        isAzure={false}
+        dbMode="mongodb_cluster"
+      />
+    );
+
+    expect(screen.getByText('Test Build')).toBeInTheDocument();
+    expect(screen.getByText('Production Build')).toBeInTheDocument();
+
+    const testBtn = screen.getByRole('button', { name: /Launch Test Build/i });
+    fireEvent.click(testBtn);
+    expect(onSelectTest).toHaveBeenCalledTimes(1);
+
+    const prodBtn = screen.getByRole('button', { name: /Launch Production Build/i });
+    fireEvent.click(prodBtn);
+    expect(onSelectProd).toHaveBeenCalledTimes(1);
   });
 });

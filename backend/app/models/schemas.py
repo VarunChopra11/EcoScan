@@ -91,3 +91,5 @@ class HealthResponse(BaseModel):
     version: str
     azure_openai_configured: bool
     vision_mode: str
+    clerk_configured: bool = False
+    database_mode: str = "persistent_storage"

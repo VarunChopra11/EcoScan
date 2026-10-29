@@ -11,11 +11,13 @@ import { scanImage } from '../../services/api';
 interface ScannerViewProps {
   onScanSuccess: (scan: ScanResponse) => void;
   onNavigateToRedeem: () => void;
+  onCustomScan?: (params: { file?: File; base64Data?: string; sampleHint?: string }) => Promise<ScanResponse>;
 }
 
 export const ScannerView: React.FC<ScannerViewProps> = ({
   onScanSuccess,
   onNavigateToRedeem,
+  onCustomScan,
 }) => {
   const [mode, setMode] = useState<ScanInputMode>('upload');
   const [isLoading, setIsLoading] = useState(false);
@@ -30,7 +32,7 @@ export const ScannerView: React.FC<ScannerViewProps> = ({
     setIsLoading(true);
     setErrorMessage(null);
     try {
-      const response = await scanImage(params);
+      const response = onCustomScan ? await onCustomScan(params) : await scanImage(params);
       setCurrentResult(response);
       onScanSuccess(response);
     } catch (err: any) {

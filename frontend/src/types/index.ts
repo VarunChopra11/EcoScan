@@ -82,5 +82,21 @@ export interface UserHistoryResponse {
   redeemed_offers: OfferRedemptionResponse[];
 }
 
+export interface ProductionUser {
+  user_id: string;
+  email?: string;
+  name?: string;
+  created_at?: string;
+}
+
+export interface ProductionDashboardResponse {
+  user: ProductionUser;
+  stats: LifetimeStats;
+  recent_scans: ScanResponse[];
+  offers: Offer[];
+  database_mode: string;
+}
+
+export type AppMode = 'landing' | 'test' | 'prod';
 export type TabType = 'scan' | 'redeem' | 'history';
 export type ScanInputMode = 'upload' | 'camera' | 'sample';

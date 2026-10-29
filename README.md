@@ -7,7 +7,7 @@
 [![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.4+-38B2AC.svg)](https://tailwindcss.com)
 [![MongoDB](https://img.shields.io/badge/MongoDB-Motor%20Async-47A248.svg)](https://www.mongodb.com/)
 [![Clerk Auth](https://img.shields.io/badge/Auth-Clerk%20JWT-6C47FF.svg)](https://clerk.com/)
-[![Tests Passing](https://img.shields.io/badge/Tests-100%25%20Passing%20(39%2F39)-brightgreen.svg)]()
+[![Tests Passing](https://img.shields.io/badge/Tests-100%25%20Passing%20(46%2F46)-brightgreen.svg)]()
 
 > **EcoScan** is a production-grade full-stack web application designed to empower conscious consumerism. Users upload or capture photos of clothing items, an AI vision pipeline identifies the garments, calculates life-cycle carbon footprints ($\text{kg CO}_2\text{e}$), quantifies emissions avoided relative to fast-fashion benchmarks, awards **EcoPoints**, and unlocks redeemable circular partner rewards.
 
@@ -98,8 +98,8 @@ Both modes share the core AI garment recognition, lifecycle carbon scoring, and 
    - **Instant Apparel Presets**: 1-click test drives (e.g., Organic Cotton Tee, Classic Denim Trucker, Recycled Runners) for evaluators without local photos.
 3. **Cradle-to-Grave Carbon Accounting**:
    - Transparent baseline scores + material multipliers (synthetics penalty, organic savings, recycled discounts, circular vintage bonus).
-   - Real-world impact equivalencies: equivalent passenger car miles driven, smartphone charges, and tree seedling-years needed to offset.
-   - Actionable garment care and maintenance tips (cold water washing, line drying, microfiber wash bags).
+   - Clean, focused per-garment and total carbon impact (kg CO₂e), eco-grades, and actionable care advice (cold water washing, line drying, microfiber wash bags).
+   - Zero unrequested clutter (passenger-car miles, phone charges, and offset equivalents removed for a focused UX).
 4. **Persistent EcoReward Wallet (Production Mode)**:
    - Each authenticated user gets a persistent MongoDB wallet tracking current balance, lifetime points earned, and total points spent.
    - Points are earned automatically upon scanning sustainable choices and deducted upon redeeming partner vouchers.
@@ -235,7 +235,8 @@ cp backend/.env.example backend/.env
 | `CLERK_SECRET_KEY` | Backend | Clerk secret key for token verification | `"sk_test_..."` |
 | `CLERK_PUBLISHABLE_KEY` | Backend | Clerk publishable key | `"pk_test_..."` |
 | `CLERK_ISSUER` | Backend | Clerk JWT issuer URL | `"https://<instance>.clerk.accounts.dev"` |
-| `ALLOW_TEST_AUTH` | Backend | Permits test auth headers in dev/test | `true` |
+| `CLERK_JWKS_URL` | Backend | Optional explicit JWKS URL (auto-inferred if empty) | `""` |
+| `CLERK_PEM_PUBLIC_KEY` | Backend | Optional RSA PEM public key from Clerk Dashboard | `""` |
 | `VITE_API_BASE_URL` | Frontend | Backend URL (empty in dev to use Vite proxy) | `""` |
 | `VITE_CLERK_PUBLISHABLE_KEY` | Frontend | Clerk publishable key for frontend auth | `"pk_test_..."` |
 
@@ -244,10 +245,12 @@ cp backend/.env.example backend/.env
 ## 🔑 Clerk Authentication Setup
 
 1. **Create Account & Application**:
-   - Go to [clerk.com](https://clerk.com) and create a free application.
-   - Enable **Email** authentication under User & Authentication > Email, Phone, Username.
+   - Go to [clerk.com](https://clerk.com) and create an application.
+   - Under **User & Authentication > Email, Phone, Username**:
+     - Ensure **Email Address** is required.
+     - Ensure **Email verification code (OTP)** is required on sign-up.
 2. **Copy API Keys**:
-   - Go to **API Keys** in the Clerk dashboard.
+   - Navigate to **API Keys** in the Clerk dashboard.
    - Copy `Publishable key` (starts with `pk_test_...`) and `Secret key` (starts with `sk_test_...`).
 3. **Configure Environment**:
    - In `backend/.env`:
@@ -260,8 +263,12 @@ cp backend/.env.example backend/.env
      ```ini
      VITE_CLERK_PUBLISHABLE_KEY="pk_test_..."
      ```
-
-> **Zero-Friction Dev Fallback:** If Clerk keys are not provided, EcoScan automatically activates its **Interactive Demo Auth Selector** with instant accounts (`Alice (user_alice)` and `Bob (user_bob)`) or custom email login. This allows reviewers to immediately verify multi-tenant data isolation and MongoDB persistence without registering for Clerk!
+4. **Security & Cryptographic Verification**:
+   - Production mode rejects all unauthenticated requests with `401 Unauthorized`.
+   - The backend independently verifies token signatures and expiration timestamps.
+   - User identity is extracted strictly from the token's subject (`sub`) claim.
+   - All client-supplied user IDs and bypass headers are rejected.
+   - When Clerk keys are omitted in `.env`, Production Mode presents a clear configuration notice with 1-click access to the in-memory **Test Build** (Assignment Mode) which runs with zero configuration.
 
 ---
 
@@ -322,9 +329,9 @@ npm run dev
 
 ## 🧪 Running Tests
 
-EcoScan features **39 automated tests** covering calculations, image security, in-memory behavior, Clerk authentication boundaries, and MongoDB data isolation.
+EcoScan features **46 automated tests** covering calculations, image security, in-memory behavior, cryptographic Clerk authentication boundaries, multi-tenant data isolation, and UI minimalism.
 
-### 1. Backend Tests (Pytest — 32 Tests)
+### 1. Backend Tests (Pytest — 37 Tests)
 ```bash
 cd backend
 .venv/bin/pytest -v
@@ -335,20 +342,33 @@ cd backend
 - `test_offers.py` (5 tests): Initial unlocked state, successful redemption, insufficient points, and duplicate rejection.
 - `test_image_validation.py` (5 tests): Magic bytes inspection, corrupted image bytes, empty files, and 10MB limit enforcement.
 - `test_api_endpoints.py` (7 tests): Test Build endpoints end-to-end (`/scan`, `/offers`, `/history`, `/health`).
-- `test_production_api.py` (5 tests):
-  - 401 Unauthorized rejection for missing/invalid auth tokens.
-  - Test token authorization and identity extraction.
+- `test_production_api.py` (10 tests):
+  - 401 Unauthorized rejection for missing auth tokens across all protected endpoints.
+  - Rejection of client-supplied user ID headers and query parameters.
+  - Rejection of malformed Authorization headers and missing Bearer prefixes.
+  - Rejection of forged signatures signed with untrusted keys.
+  - Rejection of expired tokens (`jwt.ExpiredSignatureError`).
+  - Rejection of tokens missing `sub` claims.
+  - Cryptographically verified token authorization and server-side identity derivation.
   - **Strict Multi-Tenant Data Isolation**: Proves User Alice's scans and points are completely invisible to User Bob.
   - Persistent wallet point deduction and promo voucher generation.
-  - Preservation of Test Build endpoints.
+  - Preservation of Test Build endpoints in-memory without authentication.
 
-### 2. Frontend Tests (Vitest — 7 Tests)
+### 2. Frontend Tests (Vitest — 9 Tests)
 ```bash
 cd frontend
 npm test
 ```
 **Coverage**:
-- `components.test.tsx` (7 tests): `Badge`, `StatCard`, `GarmentCard`, `OfferCard` (locked/unlocked transitions), `TabNavigation`, and `LandingPage` dual-mode triggers.
+- `components.test.tsx` (9 tests):
+  - `Badge`: variant and styling.
+  - `StatCard`: metric rendering.
+  - `GarmentCard`: apparel breakdown, eco-grade, and care advice.
+  - `ScanResults`: verifies clean, minimal UI rendering carbon impact and points without unrequested passenger-car miles, phone charges, or tree-offset equivalents.
+  - `OfferCard`: locked and unlocked states.
+  - `TabNavigation`: tab switching.
+  - `LandingPage`: dual-mode navigation callbacks.
+  - `ProductionApp`: enforces Clerk configuration notice when unconfigured; verifies that no mock email form or Alice/Bob bypass buttons exist.
 
 ### 3. Production TypeScript Build Check
 ```bash

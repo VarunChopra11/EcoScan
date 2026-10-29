@@ -4,7 +4,6 @@ from typing import Optional, Dict, Any
 from pydantic import BaseModel
 import jwt
 from jwt import PyJWKClient, PyJWKClientError
-import httpx
 from fastapi import Header, HTTPException, status
 
 from app.core.config import settings
@@ -20,8 +19,8 @@ class AuthenticatedUser(BaseModel):
 
 class ClerkAuthVerifier:
     """
-    Verifies Clerk JSON Web Tokens (JWT) using Clerk's JWKS or secret key,
-    with secure local test tokens supported when ALLOW_TEST_AUTH is enabled.
+    Verifies Clerk JSON Web Tokens (JWT) using Clerk's JWKS, PEM public key, or secret key.
+    Enforces cryptographic signature verification, expiration checks, and claims validation.
     """
 
     def __init__(self):
@@ -50,103 +49,122 @@ class ClerkAuthVerifier:
     def verify_token(self, token: str) -> AuthenticatedUser:
         """
         Validates Clerk JWT and extracts authenticated claims.
+        Enforces cryptographic signature verification, expiration validation,
+        and subject (sub) claim extraction.
         """
-        # 1. Check for test token support when ALLOW_TEST_AUTH is enabled
-        if settings.ALLOW_TEST_AUTH:
-            if token.startswith("test_") or token.startswith("user_") or ":" in token:
-                user_id = token.replace("test_", "")
-                return AuthenticatedUser(
-                    user_id=user_id,
-                    email=f"{user_id}@ecoscan.local",
-                    name=f"Test User ({user_id})",
-                )
+        if not token or not token.strip():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Empty authentication token provided.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        jwks_client = self._get_jwks_client()
+        token = token.strip()
+        payload: Optional[Dict[str, Any]] = None
 
-        # 2. Verify with Clerk JWKS if configured
-        if jwks_client:
+        # 1. Verify with Clerk PEM Public Key (RS256) if provided directly in config
+        if settings.CLERK_PEM_PUBLIC_KEY:
             try:
-                signing_key = jwks_client.get_signing_key_from_jwt(token)
-                decode_options = {"verify_aud": False}
+                decode_options = {"verify_signature": True, "verify_exp": True, "verify_aud": False}
                 if settings.CLERK_ISSUER:
                     decode_options["verify_iss"] = True
 
                 payload = jwt.decode(
                     token,
-                    signing_key.key,
+                    settings.CLERK_PEM_PUBLIC_KEY,
                     algorithms=["RS256"],
                     issuer=settings.CLERK_ISSUER or None,
                     options=decode_options,
                 )
-                user_id = payload.get("sub")
-                if not user_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Token missing 'sub' subject claim.",
-                    )
-
-                email = payload.get("email") or payload.get("primary_email_address")
-                name = payload.get("name") or payload.get("full_name")
-
-                return AuthenticatedUser(user_id=user_id, email=email, name=name)
             except jwt.ExpiredSignatureError:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Authentication token has expired.",
+                    headers={"WWW-Authenticate": "Bearer"},
                 )
-            except (jwt.PyJWTError, PyJWKClientError) as exc:
-                logger.warning(f"Clerk JWT validation failed: {exc}")
+            except jwt.PyJWTError as exc:
+                logger.warning(f"Clerk PEM verification failed: {exc}")
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
                     detail="Invalid authentication token.",
+                    headers={"WWW-Authenticate": "Bearer"},
                 )
 
-        # 3. Verify with Clerk Secret Key (HS256) if provided without JWKS
-        if settings.CLERK_SECRET_KEY:
+        # 2. Verify with Clerk JWKS client if JWKS URL or Issuer configured
+        if payload is None:
+            jwks_client = self._get_jwks_client()
+            if jwks_client:
+                try:
+                    signing_key = jwks_client.get_signing_key_from_jwt(token)
+                    decode_options = {"verify_signature": True, "verify_exp": True, "verify_aud": False}
+                    if settings.CLERK_ISSUER:
+                        decode_options["verify_iss"] = True
+
+                    payload = jwt.decode(
+                        token,
+                        signing_key.key,
+                        algorithms=["RS256"],
+                        issuer=settings.CLERK_ISSUER or None,
+                        options=decode_options,
+                    )
+                except jwt.ExpiredSignatureError:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Authentication token has expired.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                except (jwt.PyJWTError, PyJWKClientError) as exc:
+                    logger.warning(f"Clerk JWKS verification failed: {exc}")
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Invalid authentication token.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+
+        # 3. Verify with Clerk Secret Key (HS256) if provided
+        if payload is None and settings.CLERK_SECRET_KEY:
             try:
                 payload = jwt.decode(
                     token,
                     settings.CLERK_SECRET_KEY,
-                    algorithms=["HS256", "RS256"],
-                    options={"verify_signature": False},  # secret key inspection fallback
+                    algorithms=["HS256", "HS384", "HS512"],
+                    options={"verify_signature": True, "verify_exp": True, "verify_aud": False},
                 )
-                user_id = payload.get("sub")
-                if user_id:
-                    return AuthenticatedUser(
-                        user_id=user_id,
-                        email=payload.get("email"),
-                        name=payload.get("name"),
-                    )
-            except Exception as exc:
-                logger.warning(f"Clerk secret key verification error: {exc}")
+            except jwt.ExpiredSignatureError:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid authentication credentials.",
+                    detail="Authentication token has expired.",
+                    headers={"WWW-Authenticate": "Bearer"},
+                )
+            except jwt.PyJWTError as exc:
+                logger.warning(f"Clerk secret key verification failed: {exc}")
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Invalid authentication token.",
+                    headers={"WWW-Authenticate": "Bearer"},
                 )
 
-        # 4. If neither Clerk JWKS nor Secret Key configured, check if ALLOW_TEST_AUTH allows unverified token
-        if settings.ALLOW_TEST_AUTH:
-            try:
-                # Decode unverified token to extract sub for local exploration
-                unverified = jwt.decode(token, options={"verify_signature": False})
-                user_id = unverified.get("sub") or "local_dev_user"
-                return AuthenticatedUser(
-                    user_id=user_id,
-                    email=unverified.get("email", f"{user_id}@example.com"),
-                    name=unverified.get("name", "Local Dev User"),
-                )
-            except Exception:
-                # Raw token string as user ID in local dev mode
-                return AuthenticatedUser(
-                    user_id=token,
-                    email=f"{token}@ecoscan.local",
-                    name=f"Dev User {token}",
-                )
+        # 4. If no verification method succeeded or server is unconfigured
+        if payload is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Clerk authentication is not configured on the server.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
 
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Clerk authentication is not configured on the server.",
-        )
+        # Validate that verified payload contains a non-empty subject identifier
+        user_id = payload.get("sub")
+        if not user_id or not str(user_id).strip():
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token missing 'sub' subject claim.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
+        email = payload.get("email") or payload.get("primary_email_address")
+        name = payload.get("name") or payload.get("full_name")
+
+        return AuthenticatedUser(user_id=str(user_id).strip(), email=email, name=name)
 
 
 auth_verifier = ClerkAuthVerifier()
@@ -154,21 +172,12 @@ auth_verifier = ClerkAuthVerifier()
 
 async def get_current_user(
     authorization: Optional[str] = Header(None),
-    x_test_user_id: Optional[str] = Header(None, alias="X-Test-User-Id"),
 ) -> AuthenticatedUser:
     """
     FastAPI dependency enforcing verified user identity for production routes.
-    Guarantees that user identity is derived strictly from verified credentials.
+    Guarantees that user identity is derived strictly from verified credentials,
+    never from client-supplied IDs.
     """
-    # 1. Check explicit test header if allowed in dev/test environment
-    if settings.ALLOW_TEST_AUTH and x_test_user_id:
-        return AuthenticatedUser(
-            user_id=x_test_user_id.strip(),
-            email=f"{x_test_user_id.strip()}@ecoscan.local",
-            name=f"User {x_test_user_id.strip()}",
-        )
-
-    # 2. Check Authorization Bearer header
     if not authorization:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

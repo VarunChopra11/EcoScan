@@ -3,9 +3,6 @@ import confetti from 'canvas-confetti';
 import {
   Sparkles,
   ArrowRight,
-  Car,
-  Smartphone,
-  Trees,
   RotateCcw,
   Tag,
 } from 'lucide-react';
@@ -100,51 +97,6 @@ export const ScanResults: React.FC<ScanResultsProps> = ({
                   </span>
                 </div>
               )}
-            </div>
-          </div>
-        </div>
-
-        {/* Environmental Equivalents Strip */}
-        <div className="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-emerald-100 pt-5">
-          <div className="flex items-center gap-3 rounded-xl bg-white/80 p-3 shadow-xs">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sky-100 text-sky-700 shrink-0">
-              <Car className="h-4 w-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Passenger Car Equiv.
-              </span>
-              <span className="text-xs font-bold text-slate-800">
-                {results.equivalents.car_miles} miles driven
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-xl bg-white/80 p-3 shadow-xs">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-100 text-amber-700 shrink-0">
-              <Smartphone className="h-4 w-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Electricity Equiv.
-              </span>
-              <span className="text-xs font-bold text-slate-800">
-                {results.equivalents.phone_charges.toLocaleString()} phone charges
-              </span>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-3 rounded-xl bg-white/80 p-3 shadow-xs">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-700 shrink-0">
-              <Trees className="h-4 w-4" />
-            </div>
-            <div>
-              <span className="text-[10px] uppercase font-bold text-slate-400 block">
-                Offset Requirement
-              </span>
-              <span className="text-xs font-bold text-slate-800">
-                {results.equivalents.trees_planted} tree seedling-years
-              </span>
             </div>
           </div>
         </div>

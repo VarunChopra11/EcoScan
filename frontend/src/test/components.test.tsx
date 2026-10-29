@@ -6,7 +6,9 @@ import { GarmentCard } from '../components/Scanner/GarmentCard';
 import { OfferCard } from '../components/Redeem/OfferCard';
 import { TabNavigation } from '../components/TabNavigation';
 import { LandingPage } from '../components/Landing/LandingPage';
-import { GarmentItem, Offer } from '../types';
+import { ScanResults } from '../components/Scanner/ScanResults';
+import { ProductionApp } from '../components/Production/ProductionApp';
+import { GarmentItem, Offer, ScanResponse } from '../types';
 
 describe('Common Components', () => {
   it('renders Badge with correct text and variant', () => {
@@ -51,6 +53,66 @@ describe('GarmentCard Component', () => {
     expect(screen.getByText('95% match')).toBeInTheDocument();
     expect(screen.getByText('-3.75')).toBeInTheDocument();
     expect(screen.getByText(/Wash cold inside out/)).toBeInTheDocument();
+  });
+});
+
+describe('ScanResults Component (Clean Minimal UI)', () => {
+  const mockScan: ScanResponse = {
+    id: 'scan_test_1',
+    timestamp: new Date().toISOString(),
+    items: [
+      {
+        name: 'Organic Cotton Tee',
+        category: 't-shirt',
+        material: 'organic cotton',
+        confidence: 0.96,
+        estimated_co2_kg: 3.5,
+        baseline_co2_kg: 5.0,
+        benchmark_co2_kg: 7.5,
+        co2_saved_kg: 4.0,
+        eco_rating: 'A',
+        care_recommendation: 'Wash in cold water.',
+      },
+    ],
+    total_co2_kg: 3.5,
+    total_co2_saved_kg: 4.0,
+    overall_eco_rating: 'A',
+    points_awarded: 90,
+    points_breakdown: {
+      total: 90,
+      base_scan: 10,
+      eco_savings: 80,
+      low_impact_bonus: 0,
+    },
+    equivalents: {
+      car_miles: 8.7,
+      phone_charges: 425,
+      trees_planted: 0.2,
+    },
+    summary_tip: 'Outstanding sustainable choice!',
+    vision_source: 'azure_openai_gpt4o',
+  };
+
+  it('renders carbon impact and points without unnecessary decorative equivalents', () => {
+    render(
+      <ScanResults
+        results={mockScan}
+        onScanAnother={vi.fn()}
+        onGoToRedeem={vi.fn()}
+      />
+    );
+
+    // Focused essentials must be present
+    expect(screen.getAllByText('3.5').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText('+90')).toBeInTheDocument();
+    expect(screen.getByText(/Outstanding sustainable choice/)).toBeInTheDocument();
+    expect(screen.getByText('Organic Cotton Tee')).toBeInTheDocument();
+
+    // Unnecessary decorative equivalents strip must be removed
+    expect(screen.queryByText(/Passenger Car Equiv/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/miles driven/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/phone charges/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/seedling-years/i)).not.toBeInTheDocument();
   });
 });
 
@@ -155,5 +217,32 @@ describe('LandingPage Component (Dual-Mode Selector)', () => {
     const prodBtn = screen.getByRole('button', { name: /Launch Production Build/i });
     fireEvent.click(prodBtn);
     expect(onSelectProd).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('ProductionApp Component (Auth Security & No Mock Bypasses)', () => {
+  it('renders Clerk configuration notice when unconfigured and prevents email bypass', () => {
+    const onBack = vi.fn();
+    const onSwitch = vi.fn();
+
+    render(
+      <ProductionApp
+        onBackToLanding={onBack}
+        onSwitchToTestBuild={onSwitch}
+      />
+    );
+
+    // Shows security guidance
+    expect(screen.getByText(/Clerk Configuration Required/i)).toBeInTheDocument();
+
+    // Verifies that NO Alice/Bob demo account buttons or mock email forms exist
+    expect(screen.queryByText(/Alice Sustainable/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Bob Eco/i)).not.toBeInTheDocument();
+    expect(screen.queryByPlaceholderText(/name@example.com/i)).not.toBeInTheDocument();
+
+    // Verifies action buttons
+    const testModeBtn = screen.getByRole('button', { name: /Launch Test Build/i });
+    fireEvent.click(testModeBtn);
+    expect(onSwitch).toHaveBeenCalledTimes(1);
   });
 });

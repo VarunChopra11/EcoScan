@@ -29,10 +29,7 @@ class Settings(BaseSettings):
     CLERK_PUBLISHABLE_KEY: str = ""
     CLERK_ISSUER: str = ""  # e.g., https://clerk.your-domain.com
     CLERK_JWKS_URL: Optional[str] = None  # Auto-inferred from CLERK_ISSUER if not specified
-
-    # Local Test / Development Auth Bypass (strictly for automated tests & local development)
-    ALLOW_TEST_AUTH: bool = True
-    TEST_AUTH_HEADER: str = "X-Test-User-Id"
+    CLERK_PEM_PUBLIC_KEY: Optional[str] = None  # RSA Public key (PEM) from Clerk Dashboard
 
     # Image upload limits
     MAX_IMAGE_SIZE_BYTES: int = 10 * 1024 * 1024  # 10 MB

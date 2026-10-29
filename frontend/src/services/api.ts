@@ -8,12 +8,10 @@ import {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || '';
 
-function createAuthHeaders(auth?: { token?: string; testUserId?: string }): HeadersInit {
+function createAuthHeaders(token?: string): HeadersInit {
   const headers: Record<string, string> = {};
-  if (auth?.token) {
-    headers['Authorization'] = `Bearer ${auth.token}`;
-  } else if (auth?.testUserId) {
-    headers['X-Test-User-Id'] = auth.testUserId;
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
   }
   return headers;
 }
@@ -109,11 +107,8 @@ export async function checkHealth(): Promise<{
    2. Production Build Endpoints (Clerk Auth + MongoDB Persistence)
    ============================================================ */
 
-export async function getProductionDashboard(auth?: {
-  token?: string;
-  testUserId?: string;
-}): Promise<ProductionDashboardResponse> {
-  const headers = createAuthHeaders(auth);
+export async function getProductionDashboard(token?: string): Promise<ProductionDashboardResponse> {
+  const headers = createAuthHeaders(token);
   const response = await fetch(`${API_BASE}/api/v1/prod/dashboard`, {
     headers,
   });
@@ -131,7 +126,6 @@ export async function productionScanImage(params: {
   base64Data?: string;
   sampleHint?: string;
   token?: string;
-  testUserId?: string;
 }): Promise<ScanResponse> {
   const formData = new FormData();
 
@@ -145,7 +139,7 @@ export async function productionScanImage(params: {
     formData.append('sample_hint', params.sampleHint);
   }
 
-  const headers = createAuthHeaders({ token: params.token, testUserId: params.testUserId });
+  const headers = createAuthHeaders(params.token);
 
   const response = await fetch(`${API_BASE}/api/v1/prod/scan`, {
     method: 'POST',
@@ -161,11 +155,8 @@ export async function productionScanImage(params: {
   return response.json();
 }
 
-export async function getProductionOffers(auth?: {
-  token?: string;
-  testUserId?: string;
-}): Promise<Offer[]> {
-  const headers = createAuthHeaders(auth);
+export async function getProductionOffers(token?: string): Promise<Offer[]> {
+  const headers = createAuthHeaders(token);
   const response = await fetch(`${API_BASE}/api/v1/prod/offers`, {
     headers,
   });
@@ -179,9 +170,9 @@ export async function getProductionOffers(auth?: {
 
 export async function redeemProductionOffer(
   offerId: string,
-  auth?: { token?: string; testUserId?: string }
+  token?: string
 ): Promise<OfferRedemptionResponse> {
-  const headers = createAuthHeaders(auth);
+  const headers = createAuthHeaders(token);
   const response = await fetch(`${API_BASE}/api/v1/prod/offers/${encodeURIComponent(offerId)}/redeem`, {
     method: 'POST',
     headers,
@@ -195,11 +186,8 @@ export async function redeemProductionOffer(
   return response.json();
 }
 
-export async function getProductionHistory(auth?: {
-  token?: string;
-  testUserId?: string;
-}): Promise<UserHistoryResponse> {
-  const headers = createAuthHeaders(auth);
+export async function getProductionHistory(token?: string): Promise<UserHistoryResponse> {
+  const headers = createAuthHeaders(token);
   const response = await fetch(`${API_BASE}/api/v1/prod/history`, {
     headers,
   });

@@ -3,12 +3,9 @@ import {
   Leaf,
   Sparkles,
   Database,
-  ShieldCheck,
   Cpu,
   ArrowRight,
   RotateCcw,
-  Globe,
-  Tag,
 } from 'lucide-react';
 import { Badge } from '../common/Badge';
 
@@ -192,39 +189,6 @@ export const LandingPage: React.FC<LandingPageProps> = ({
                 <ArrowRight className="h-4 w-4" />
               </button>
             </div>
-          </div>
-        </div>
-
-        {/* Feature Highlights Grid */}
-        <div className="mt-16 sm:mt-24 grid grid-cols-1 sm:grid-cols-3 gap-6 max-w-5xl mx-auto">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50 text-amber-700 mb-3">
-              <Globe className="h-5 w-5" />
-            </div>
-            <h4 className="text-sm font-bold text-slate-900">Life Cycle Assessment</h4>
-            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-              Based on global apparel LCA studies, tracking cradle-to-grave emissions from crop cultivation to consumer laundry.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 mb-3">
-              <Tag className="h-5 w-5" />
-            </div>
-            <h4 className="text-sm font-bold text-slate-900">Eco-Savings & Rewards</h4>
-            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-              Earn 20 EcoPoints per 1 kg CO₂ saved versus high-impact fast-fashion benchmarks, plus low-footprint efficiency bonuses.
-            </p>
-          </div>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xs">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-50 text-sky-700 mb-3">
-              <ShieldCheck className="h-5 w-5" />
-            </div>
-            <h4 className="text-sm font-bold text-slate-900">Enterprise Security</h4>
-            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-              Magic-byte image validation, strict payload limits, server-side JWT verification, and complete tenant data isolation.
-            </p>
           </div>
         </div>
       </main>

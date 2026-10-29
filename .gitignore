@@ -45,6 +45,9 @@ yarn-error.log*
 *.local
 backend/.env
 frontend/.env
+.agents
+skills-lock.json
+demo-video
 
 # IDE & OS
 .vscode/

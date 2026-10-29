@@ -354,7 +354,7 @@ const ProductionAuthenticatedDashboard: React.FC<ProductionAppProps> = ({
             {/* Persistent Wallet Balance */}
             <div className="flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-900 shadow-xs">
               <Sparkles className="h-3.5 w-3.5 text-amber-500" />
-              <span>{userStats?.current_points ?? 50} EcoPoints</span>
+              <span>{userStats?.current_points ?? 0} EcoPoints</span>
             </div>
 
             {/* Clerk User Button & Details */}
@@ -486,7 +486,7 @@ const ProductionAuthenticatedDashboard: React.FC<ProductionAppProps> = ({
                         Wallet Balance
                       </span>
                       <span className="text-2xl font-black text-amber-900 leading-none">
-                        {userStats?.current_points ?? 50}{' '}
+                        {userStats?.current_points ?? 0}{' '}
                         <span className="text-sm font-semibold text-amber-700">EcoPts</span>
                       </span>
                     </div>
@@ -522,7 +522,7 @@ const ProductionAuthenticatedDashboard: React.FC<ProductionAppProps> = ({
                   value={userStats?.total_points_spent ?? 0}
                   unit="pts"
                   variant="accent"
-                  subtext={`${userStats?.lifetime_points_earned ?? 50} pts lifetime`}
+                  subtext={`${userStats?.lifetime_points_earned ?? 0} pts lifetime`}
                   icon={<Gift className="h-4 w-4 text-amber-500" />}
                 />
               </div>
@@ -591,7 +591,7 @@ const ProductionAuthenticatedDashboard: React.FC<ProductionAppProps> = ({
                     <OfferCard
                       key={offer.id}
                       offer={offer}
-                      currentPoints={userStats?.current_points ?? 50}
+                      currentPoints={userStats?.current_points ?? 0}
                       onRedeem={handleRedeemOffer}
                       onViewCode={(o) => setActiveModalOffer(o)}
                       isRedeeming={isRedeeming}
@@ -624,7 +624,7 @@ const ProductionAuthenticatedDashboard: React.FC<ProductionAppProps> = ({
               </div>
               <div className="flex items-center gap-1.5 rounded-xl border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-900">
                 <Sparkles className="h-4 w-4 text-amber-500" />
-                <span>{userStats?.current_points ?? 50} EcoPoints</span>
+                <span>{userStats?.current_points ?? 0} EcoPoints</span>
               </div>
             </div>
 
@@ -633,7 +633,7 @@ const ProductionAuthenticatedDashboard: React.FC<ProductionAppProps> = ({
                 <OfferCard
                   key={offer.id}
                   offer={offer}
-                  currentPoints={userStats?.current_points ?? 50}
+                  currentPoints={userStats?.current_points ?? 0}
                   onRedeem={handleRedeemOffer}
                   onViewCode={(o) => setActiveModalOffer(o)}
                   isRedeeming={isRedeeming}

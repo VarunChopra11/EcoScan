@@ -100,10 +100,18 @@ Both modes share the core AI garment recognition, lifecycle carbon scoring, and 
    - Transparent baseline scores + material multipliers (synthetics penalty, organic savings, recycled discounts, circular vintage bonus).
    - Clean, focused per-garment and total carbon impact (kg CO₂e), eco-grades, and actionable care advice (cold water washing, line drying, microfiber wash bags).
    - Zero unrequested clutter (passenger-car miles, phone charges, and offset equivalents removed for a focused UX).
-4. **Persistent EcoReward Wallet (Production Mode)**:
-   - Each authenticated user gets a persistent MongoDB wallet tracking current balance, lifetime points earned, and total points spent.
-   - Points are earned automatically upon scanning sustainable choices and deducted upon redeeming partner vouchers.
-5. **Strict Multi-Tenant Data Isolation**:
+4. **Persistent EcoReward Wallet (0 Starting Balance)**:
+   - All newly registered users in Production Build and new sessions in Test Build start with exactly **0 EcoPoints** (no unearned initial balances; points must be earned through conscious garment logging).
+   - Existing earned balances for registered users are strictly preserved and never reset during logins or migrations.
+   - Tracks current balance, lifetime points earned, and total points spent.
+5. **Strict Clothing Validation & Hallucination Prevention**:
+   - Azure AI Foundry GPT-4o Vision system prompt and structured JSON schema enforce apparel and footwear recognition only, rejecting animals, vehicles, food, electronics, landscapes, text, and empty scenes.
+   - Server-side pre-validation catches flat single-color canvases and tiny/blurry images before model inference.
+   - Configurable confidence threshold (`MIN_CONFIDENCE_THRESHOLD=0.70`) discards low-confidence items server-side.
+   - Discards non-apparel items from mixed detections, scoring and awarding points exclusively for validated garments.
+   - Unrecognized images return explicit `no_clothing_detected` or `uncertain_image` HTTP 422 errors asking the user for a clearer clothing photo.
+   - Rejected scans never mutate user history or wallet balances.
+6. **Strict Multi-Tenant Data Isolation**:
    - Every production endpoint derives the user identity strictly from verified authentication headers (`sub` claim), preventing cross-user data exposure.
 
 ---
@@ -329,17 +337,26 @@ npm run dev
 
 ## 🧪 Running Tests
 
-EcoScan features **46 automated tests** covering calculations, image security, in-memory behavior, cryptographic Clerk authentication boundaries, multi-tenant data isolation, and UI minimalism.
+EcoScan features **74 automated tests** covering calculations, image security, in-memory behavior, cryptographic Clerk authentication boundaries, multi-tenant data isolation, strict clothing validation, and UI minimalism.
 
-### 1. Backend Tests (Pytest — 37 Tests)
+### 1. Backend Tests (Pytest — 65 Tests)
 ```bash
 cd backend
 .venv/bin/pytest -v
 ```
 **Coverage**:
+- `test_vision_validation.py` (28 tests):
+  - Strict rejection of non-clothing images (empty scenes, vehicles, dogs, cats, food, landscapes).
+  - Server-side pre-validation rejection of flat solid-color canvases and tiny/blurry dimensions.
+  - Ambiguous and blurry image rejection returning `uncertain_image` HTTP 422 with actionable guidance.
+  - Enforcement of `MIN_CONFIDENCE_THRESHOLD` (0.70) discarding low-confidence items.
+  - Mixed image filtering (discarding electronics/smartphones while scoring clothing items).
+  - Safe failure on malformed model outputs and Azure API timeouts without fabricating data.
+  - Wallet and history immutability on rejected scans (no points awarded, no scan saved).
+  - Zero-balance wallet initialization in both Test Build and Production Build, while preserving existing user balances.
 - `test_carbon_service.py` (6 tests): Baseline emissions, material multipliers, category normalization, and equivalents.
 - `test_reward_service.py` (4 tests): EcoPoints formula, savings points, efficiency bonus, and contextual care tips.
-- `test_offers.py` (5 tests): Initial unlocked state, successful redemption, insufficient points, and duplicate rejection.
+- `test_offers.py` (5 tests): Initial locked state with 0 points, successful redemption after earning points, insufficient points, and duplicate rejection.
 - `test_image_validation.py` (5 tests): Magic bytes inspection, corrupted image bytes, empty files, and 10MB limit enforcement.
 - `test_api_endpoints.py` (7 tests): Test Build endpoints end-to-end (`/scan`, `/offers`, `/history`, `/health`).
 - `test_production_api.py` (10 tests):

@@ -24,8 +24,8 @@ class InMemoryStore:
         self._lock = threading.Lock()
         self._scans: List[ScanResponse] = []
         self._redeemed_offers: List[OfferRedemptionResponse] = []
-        self._current_points: int = 50  # Start with 50 welcome points for smooth UX exploration
-        self._lifetime_points_earned: int = 50
+        self._current_points: int = 0  # Default initial balance starts at 0
+        self._lifetime_points_earned: int = 0
         self._total_points_spent: int = 0
         self._offers_catalog: List[Dict[str, Any]] = deepcopy(INITIAL_OFFERS)
 
@@ -140,8 +140,8 @@ class InMemoryStore:
         with self._lock:
             self._scans.clear()
             self._redeemed_offers.clear()
-            self._current_points = 50
-            self._lifetime_points_earned = 50
+            self._current_points = 0
+            self._lifetime_points_earned = 0
             self._total_points_spent = 0
 
 

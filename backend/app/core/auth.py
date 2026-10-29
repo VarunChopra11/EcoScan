@@ -60,69 +60,27 @@ class ClerkAuthVerifier:
             )
 
         token = token.strip()
+
+        try:
+            unverified_header = jwt.get_unverified_header(token)
+            alg = unverified_header.get("alg", "")
+        except Exception:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication token.",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
         payload: Optional[Dict[str, Any]] = None
 
-        # 1. Verify with Clerk PEM Public Key (RS256) if provided directly in config
-        if settings.CLERK_PEM_PUBLIC_KEY:
-            try:
-                decode_options = {"verify_signature": True, "verify_exp": True, "verify_aud": False}
-                if settings.CLERK_ISSUER:
-                    decode_options["verify_iss"] = True
-
-                payload = jwt.decode(
-                    token,
-                    settings.CLERK_PEM_PUBLIC_KEY,
-                    algorithms=["RS256"],
-                    issuer=settings.CLERK_ISSUER or None,
-                    options=decode_options,
-                )
-            except jwt.ExpiredSignatureError:
+        # 1. If token algorithm is HMAC (HS256/HS384/HS512), verify using CLERK_SECRET_KEY
+        if alg.startswith("HS"):
+            if not settings.CLERK_SECRET_KEY:
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Authentication token has expired.",
+                    detail="Clerk secret key is not configured for HMAC verification.",
                     headers={"WWW-Authenticate": "Bearer"},
                 )
-            except jwt.PyJWTError as exc:
-                logger.warning(f"Clerk PEM verification failed: {exc}")
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid authentication token.",
-                    headers={"WWW-Authenticate": "Bearer"},
-                )
-
-        # 2. Verify with Clerk JWKS client if JWKS URL or Issuer configured
-        if payload is None:
-            jwks_client = self._get_jwks_client()
-            if jwks_client:
-                try:
-                    signing_key = jwks_client.get_signing_key_from_jwt(token)
-                    decode_options = {"verify_signature": True, "verify_exp": True, "verify_aud": False}
-                    if settings.CLERK_ISSUER:
-                        decode_options["verify_iss"] = True
-
-                    payload = jwt.decode(
-                        token,
-                        signing_key.key,
-                        algorithms=["RS256"],
-                        issuer=settings.CLERK_ISSUER or None,
-                        options=decode_options,
-                    )
-                except jwt.ExpiredSignatureError:
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Authentication token has expired.",
-                        headers={"WWW-Authenticate": "Bearer"},
-                    )
-                except (jwt.PyJWTError, PyJWKClientError) as exc:
-                    logger.warning(f"Clerk JWKS verification failed: {exc}")
-                    raise HTTPException(
-                        status_code=status.HTTP_401_UNAUTHORIZED,
-                        detail="Invalid authentication token.",
-                        headers={"WWW-Authenticate": "Bearer"},
-                    )
-
-        # 3. Verify with Clerk Secret Key (HS256) if provided
-        if payload is None and settings.CLERK_SECRET_KEY:
             try:
                 payload = jwt.decode(
                     token,
@@ -144,11 +102,67 @@ class ClerkAuthVerifier:
                     headers={"WWW-Authenticate": "Bearer"},
                 )
 
-        # 4. If no verification method succeeded or server is unconfigured
+        # 2. If token algorithm is Asymmetric (RS256, etc.)
+        else:
+            # 2a. Verify with Clerk PEM Public Key (RS256) if provided directly in config
+            if settings.CLERK_PEM_PUBLIC_KEY:
+                try:
+                    decode_options = {"verify_signature": True, "verify_exp": True, "verify_aud": False}
+                    if settings.CLERK_ISSUER:
+                        decode_options["verify_iss"] = True
+
+                    payload = jwt.decode(
+                        token,
+                        settings.CLERK_PEM_PUBLIC_KEY,
+                        algorithms=["RS256"],
+                        issuer=settings.CLERK_ISSUER or None,
+                        options=decode_options,
+                    )
+                except jwt.ExpiredSignatureError:
+                    raise HTTPException(
+                        status_code=status.HTTP_401_UNAUTHORIZED,
+                        detail="Authentication token has expired.",
+                        headers={"WWW-Authenticate": "Bearer"},
+                    )
+                except jwt.PyJWTError as exc:
+                    logger.warning(f"Clerk PEM verification failed: {exc}")
+                    # Allow JWKS fallback if PEM fails
+
+            # 2b. Verify with Clerk JWKS client if JWKS URL or Issuer configured
+            if payload is None:
+                jwks_client = self._get_jwks_client()
+                if jwks_client:
+                    try:
+                        signing_key = jwks_client.get_signing_key_from_jwt(token)
+                        decode_options = {"verify_signature": True, "verify_exp": True, "verify_aud": False}
+                        if settings.CLERK_ISSUER:
+                            decode_options["verify_iss"] = True
+
+                        payload = jwt.decode(
+                            token,
+                            signing_key.key,
+                            algorithms=["RS256"],
+                            issuer=settings.CLERK_ISSUER or None,
+                            options=decode_options,
+                        )
+                    except jwt.ExpiredSignatureError:
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Authentication token has expired.",
+                            headers={"WWW-Authenticate": "Bearer"},
+                        )
+                    except (jwt.PyJWTError, PyJWKClientError) as exc:
+                        logger.warning(f"Clerk JWKS verification failed: {exc}")
+                        raise HTTPException(
+                            status_code=status.HTTP_401_UNAUTHORIZED,
+                            detail="Invalid authentication token.",
+                            headers={"WWW-Authenticate": "Bearer"},
+                        )
+
         if payload is None:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Clerk authentication is not configured on the server.",
+                detail="Invalid authentication token.",
                 headers={"WWW-Authenticate": "Bearer"},
             )
 

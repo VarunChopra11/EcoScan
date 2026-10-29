@@ -88,25 +88,44 @@ def test_scan_no_clothing_detected_returns_422():
 
 def test_redeem_offer_and_history_flow():
     memory_store.reset()
-    # Initial balance is 50 pts
-    # Patagonia costs 50 pts
+    # Initial balance is 0 pts
+    init_hist = client.get("/api/v1/history").json()
+    assert init_hist["stats"]["current_points"] == 0
+
+    # Attempting to redeem 50 pt offer with 0 points must fail
+    fail_resp = client.post("/api/v1/offers/patagonia-worn-wear-10/redeem")
+    assert fail_resp.status_code == 400
+    assert "insufficient" in fail_resp.json()["detail"].lower()
+
+    # User scans an item to earn points
+    image_bytes = create_test_image_bytes(format="JPEG")
+    scan_resp = client.post(
+        "/api/v1/scan",
+        files={"file": ("tee.jpg", image_bytes, "image/jpeg")},
+        data={"sample_hint": "organic-tee"},
+    )
+    assert scan_resp.status_code == 200
+    pts_earned = scan_resp.json()["points_awarded"]
+    assert pts_earned >= 50
+
+    # Now Patagonia costs 50 pts and user has enough points
     resp = client.post("/api/v1/offers/patagonia-worn-wear-10/redeem")
     assert resp.status_code == 200
     redemption = resp.json()
     assert redemption["points_spent"] == 50
-    assert redemption["remaining_points"] == 0
+    assert redemption["remaining_points"] == pts_earned - 50
     assert redemption["code"].startswith("PAT-WORN-")
 
-    # History should reflect the redemption
+    # History reflects the redemption
     hist_resp = client.get("/api/v1/history")
     assert hist_resp.status_code == 200
     hist = hist_resp.json()
-    assert hist["stats"]["current_points"] == 0
+    assert hist["stats"]["current_points"] == pts_earned - 50
     assert len(hist["redeemed_offers"]) == 1
 
-    # Reset endpoint
+    # Reset endpoint returns session to 0 points
     reset_resp = client.delete("/api/v1/history")
     assert reset_resp.status_code == 200
     fresh_hist = client.get("/api/v1/history").json()
-    assert fresh_hist["stats"]["current_points"] == 50
+    assert fresh_hist["stats"]["current_points"] == 0
     assert len(fresh_hist["redeemed_offers"]) == 0

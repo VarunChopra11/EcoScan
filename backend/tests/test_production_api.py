@@ -43,10 +43,13 @@ def create_test_jwt(
 @pytest.fixture(autouse=True)
 def setup_test_environment():
     orig_key = settings.CLERK_SECRET_KEY
+    orig_live = mongo_store._is_live_mongo
     settings.CLERK_SECRET_KEY = TEST_SIGNING_KEY
+    mongo_store._is_live_mongo = False
     mongo_store.reset_mock_data()
     yield
     settings.CLERK_SECRET_KEY = orig_key
+    mongo_store._is_live_mongo = orig_live
 
 
 def test_auth_boundary_unauthenticated_rejected():
@@ -152,7 +155,8 @@ def test_verified_token_grants_access():
     assert data["user"]["user_id"] == "user_alice_clerk"
     assert data["user"]["email"] == "alice@example.com"
     assert data["user"]["name"] == "Alice Sustainable"
-    assert data["stats"]["current_points"] == 50
+    assert data["stats"]["current_points"] == 0
+    assert data["stats"]["lifetime_points_earned"] == 0
     assert len(data["recent_scans"]) == 0
 
 
@@ -183,13 +187,13 @@ def test_strict_data_isolation_between_users():
     # Alice's dashboard shows 1 scan and updated points
     alice_dash = client.get("/api/v1/prod/dashboard", headers=alice_headers).json()
     assert alice_dash["stats"]["total_scans"] == 1
-    assert alice_dash["stats"]["current_points"] == 50 + alice_scan["points_awarded"]
+    assert alice_dash["stats"]["current_points"] == alice_scan["points_awarded"]
     assert len(alice_dash["recent_scans"]) == 1
 
-    # Bob's dashboard shows 0 scans and only starting points (50)
+    # Bob's dashboard shows 0 scans and initial 0 points
     bob_dash = client.get("/api/v1/prod/dashboard", headers=bob_headers).json()
     assert bob_dash["stats"]["total_scans"] == 0
-    assert bob_dash["stats"]["current_points"] == 50
+    assert bob_dash["stats"]["current_points"] == 0
     assert len(bob_dash["recent_scans"]) == 0
 
     # Bob's history is empty
@@ -203,14 +207,33 @@ def test_production_persistence_and_offer_redemption():
     token = create_test_jwt("user_carol_wallet", email="carol@test.app")
     user_headers = {"Authorization": f"Bearer {token}"}
 
-    # Carol starts with 50 points (Patagonia costs 50)
+    # Carol starts with 0 points (Patagonia costs 50, all offers locked)
     offers_resp = client.get("/api/v1/prod/offers", headers=user_headers)
     assert offers_resp.status_code == 200
     offers = offers_resp.json()
     patagonia = next(o for o in offers if o["id"] == "patagonia-worn-wear-10")
-    assert patagonia["is_unlocked"] is True
+    assert patagonia["is_unlocked"] is False
 
-    # Carol redeems Patagonia
+    # Attempting to redeem with 0 points fails
+    zero_redeem = client.post(
+        "/api/v1/prod/offers/patagonia-worn-wear-10/redeem",
+        headers=user_headers,
+    )
+    assert zero_redeem.status_code == 400
+
+    # Carol scans an item to earn points (denim-jacket gives ~90 pts)
+    image_bytes = create_test_image_bytes()
+    scan_resp = client.post(
+        "/api/v1/prod/scan",
+        files={"file": ("jacket.jpg", image_bytes, "image/jpeg")},
+        data={"sample_hint": "denim-jacket"},
+        headers=user_headers,
+    )
+    assert scan_resp.status_code == 200
+    earned_pts = scan_resp.json()["points_awarded"]
+    assert earned_pts >= 50
+
+    # Carol redeems Patagonia (costs 50 pts)
     redeem_resp = client.post(
         "/api/v1/prod/offers/patagonia-worn-wear-10/redeem",
         headers=user_headers,
@@ -218,12 +241,12 @@ def test_production_persistence_and_offer_redemption():
     assert redeem_resp.status_code == 200
     redemption = redeem_resp.json()
     assert redemption["points_spent"] == 50
-    assert redemption["remaining_points"] == 0
+    assert redemption["remaining_points"] == earned_pts - 50
     assert redemption["code"].startswith("PAT-WORN-")
 
-    # Carol's wallet now has 0 points
+    # Carol's wallet reflects remaining points
     user_info = client.get("/api/v1/prod/user", headers=user_headers).json()
-    assert user_info["wallet"]["current_points"] == 0
+    assert user_info["wallet"]["current_points"] == earned_pts - 50
     assert user_info["wallet"]["total_points_spent"] == 50
 
     # Duplicate redemption rejected
@@ -239,6 +262,7 @@ def test_production_persistence_and_offer_redemption():
         headers=user_headers,
     )
     assert guppy_resp.status_code == 400
+
 
 
 def test_preserved_test_build_endpoints_still_work():

@@ -78,11 +78,33 @@ class MongoStore:
     def is_live_mongo(self) -> bool:
         return self._is_live_mongo
 
+    def _ensure_active_client(self) -> None:
+        """
+        Guarantees that AsyncIOMotorClient is attached to the active running asyncio loop,
+        preventing 'Event loop is closed' errors during async tasks or test iterations.
+        """
+        if not self._is_live_mongo or not self._client:
+            return
+        try:
+            import asyncio
+            current_loop = asyncio.get_running_loop()
+        except RuntimeError:
+            return
+
+        client_loop = getattr(self._client, "get_io_loop", lambda: None)()
+        if client_loop and (client_loop.is_closed() or client_loop != current_loop):
+            self._client = AsyncIOMotorClient(
+                settings.MONGODB_URI,
+                serverSelectionTimeoutMS=2000,
+            )
+            self._db = self._client[settings.MONGODB_DB_NAME]
+
     async def get_or_create_user(self, user_id: str, email: Optional[str] = None) -> Dict[str, Any]:
         """
         Retrieves or initializes a persistent user profile and wallet.
         """
         await self.initialize()
+        self._ensure_active_client()
 
         if self._is_live_mongo and self._db is not None:
             user = await self._db.users.find_one({"user_id": user_id})
@@ -90,8 +112,8 @@ class MongoStore:
                 user = {
                     "user_id": user_id,
                     "email": email or f"{user_id}@ecoscan.app",
-                    "current_points": 50,  # 50 welcome points
-                    "lifetime_points_earned": 50,
+                    "current_points": 0,  # Starts with 0 points
+                    "lifetime_points_earned": 0,
                     "total_points_spent": 0,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -103,8 +125,8 @@ class MongoStore:
                 self._mock_users[user_id] = {
                     "user_id": user_id,
                     "email": email or f"{user_id}@ecoscan.app",
-                    "current_points": 50,
-                    "lifetime_points_earned": 50,
+                    "current_points": 0,  # Starts with 0 points
+                    "lifetime_points_earned": 0,
                     "total_points_spent": 0,
                     "created_at": datetime.now(timezone.utc).isoformat(),
                     "updated_at": datetime.now(timezone.utc).isoformat(),
@@ -138,6 +160,7 @@ class MongoStore:
         Persists a completed scan to the database and atomically awards EcoPoints to user wallet.
         """
         await self.initialize()
+        self._ensure_active_client()
         scan_dict = scan.model_dump()
         scan_dict["user_id"] = user_id
 
@@ -167,6 +190,7 @@ class MongoStore:
         Fetches chronological scans strictly belonging to this user.
         """
         await self.initialize()
+        self._ensure_active_client()
 
         if self._is_live_mongo and self._db is not None:
             cursor = self._db.scans.find({"user_id": user_id}).sort("timestamp", -1).limit(limit)
@@ -228,6 +252,7 @@ class MongoStore:
         - Generates unique voucher code
         """
         await self.initialize()
+        self._ensure_active_client()
         user = await self.get_or_create_user(user_id)
 
         offer_meta = next((o for o in self._offers_catalog if o["id"] == offer_id), None)
@@ -284,6 +309,7 @@ class MongoStore:
         Fetches redeemed partner vouchers belonging exclusively to this user.
         """
         await self.initialize()
+        self._ensure_active_client()
 
         if self._is_live_mongo and self._db is not None:
             cursor = self._db.redemptions.find({"user_id": user_id}).sort("redeemed_at", -1)

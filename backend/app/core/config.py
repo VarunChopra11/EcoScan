@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     # Mock fallback flag
     MOCK_VISION_FALLBACK: bool = True
 
+    # Vision validation & confidence settings
+    MIN_CONFIDENCE_THRESHOLD: float = 0.70  # Minimum confidence required for valid clothing detection
+
     model_config = SettingsConfigDict(
         env_file=(".env", "../.env"),
         env_file_encoding="utf-8",

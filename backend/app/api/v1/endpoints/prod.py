@@ -140,13 +140,23 @@ async def production_scan_garment(
         sample_hint=sample_hint,
     )
     raw_items = vision_result.get("items", [])
+    is_clothing = vision_result.get("is_clothing", True)
+    rejection_reason = vision_result.get("rejection_reason")
     vision_source = vision_result.get("source", "offline_model_heuristic")
 
-    if not raw_items:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="No clothing or footwear items detected. Please scan a clear photo of apparel.",
-        )
+    if not is_clothing or not raw_items:
+        if rejection_reason in {"uncertain_image", "uncertain", "ambiguous", "blurry"}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Clothing items could not be reliably identified (uncertain_image). Please upload a clearer clothing image.",
+                headers={"X-Error-Code": "uncertain_image"},
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="No clothing or footwear items detected in the image (no_clothing_detected). Please upload a clearer clothing image.",
+                headers={"X-Error-Code": "no_clothing_detected"},
+            )
 
     garment_models = []
     total_co2 = 0.0
